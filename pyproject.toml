@@ -1,0 +1,22 @@
+[project]
+name = "decision-judgment-benchmark"
+version = "0.1.0"
+description = "Benchmark suite for evaluating decision judgment systems across scenarios."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [ { name = "skylarryan212-maker", email = "decision-benchmark@example.com" } ]
+dependencies = [
+    "numpy>=1.25",
+    "pandas>=2.0"
+]
+
+[project.scripts]
+djb = "decision_judgment_benchmark.__main__:main"
+
+[project.optional-dependencies]
+tests = ["pytest>=8"]
+
+[build-system]
+requires = ["setuptools>=65", "wheel"]
+build-backend = "setuptools.build_meta"
