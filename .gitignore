@@ -52,6 +52,8 @@ coverage.xml
 Thumbs.db
 
 # Local data & experiment outputs
-data/
 experiments/
 logs/
+
+# Local credentials
+.env.local

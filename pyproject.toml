@@ -8,7 +8,9 @@ license = { text = "MIT" }
 authors = [ { name = "skylarryan212-maker", email = "decision-benchmark@example.com" } ]
 dependencies = [
     "numpy>=1.25",
-    "pandas>=2.0"
+    "pandas>=2.0",
+    "requests>=2.31",
+    "python-dotenv>=1.0",
 ]
 
 [project.scripts]
