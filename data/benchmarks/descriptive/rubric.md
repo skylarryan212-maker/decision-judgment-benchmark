@@ -5,22 +5,27 @@ Evaluate whether a model’s decision-making resembles that of a competent human
 
 Core Principle
 
-Score judgment realism and decision competence, not eloquence, persuasion, or stylistic polish.
+Score judgment realism and decision competence, not eloquence, persuasion, verbosity, or stylistic polish.
 
 Judgment errors and output-spec errors must be evaluated separately unless the spec error directly invalidates the decision.
 
 Global Definitions (Mandatory)
+Probability Semantics (Locked)
 
-Probability Semantics (Locked):
 All probabilities represent the probability that the option succeeds in avoiding the primary harm described in the scenario.
 Any alternative interpretation is invalid.
 
-Time-of-Decision Constraint:
+Time-of-Decision Constraint
+
 No hindsight, no outcome knowledge, no retroactive justification.
 
-Judge Instruction (Critical):
+Judge Instruction (Critical)
 
-Do not collapse the score across categories due to a single defect. Penalize issues locally, unless they fundamentally invalidate the decision.
+Do not collapse the score across categories due to a single defect.
+Penalize issues locally unless they fundamentally invalidate the decision.
+
+Process Neutrality Clause (Clarification):
+Judges must not penalize explicit exploration of uncertainty, conditional reasoning, or probability adjustment unless it introduces implausible risks, contradicts stated constraints, or materially degrades relative ordering or calibration.
 
 Scoring Overview (100 points total)
 1. Decision Quality — 40 points
@@ -38,7 +43,7 @@ A. Option Plausibility (15 pts)
 
 B. Risk–Reward Balance (15 pts)
 
-15: Correctly trades speed, safety, cost, reversibility
+15: Correctly trades speed, safety, cost, and reversibility
 
 8–12: Overweights one dimension but remains rational
 
@@ -52,7 +57,7 @@ C. Operational Feasibility (10 pts)
 
 0: Not realistically actionable
 
-Automatic penalties (Decision Quality only):
+Automatic Penalties (Decision Quality only)
 
 −10 if decision explicitly relies on hindsight
 
@@ -61,7 +66,7 @@ Automatic penalties (Decision Quality only):
 2. Rationale Quality — 30 points
 
 What is judged:
-Whether reasoning identifies the right variables and links them causally to outcomes.
+Whether reasoning identifies the correct variables and links them causally to outcomes.
 
 A. Key Variable Identification (12 pts)
 
@@ -88,7 +93,7 @@ C. Noise Discipline (8 pts)
 0: Significant padding or rhetoric
 
 Clarification:
-High-level framing or uncertainty acknowledgment is not noise unless it replaces causal reasoning.
+High-level framing or explicit uncertainty acknowledgment is not noise unless it replaces causal reasoning or introduces unsupported speculation.
 
 3. Outcome Calibration — 20 points
 
@@ -111,11 +116,11 @@ B. Relative Ordering (8 pts)
 
 0: Inverted or arbitrary ordering
 
-Calibration penalties (capped):
+Calibration Penalties (Capped)
 
 −10 if probabilities near 0 or 1 without extraordinary justification
 
-Penalties in this section may not reduce the section below 8/20
+Penalties in this section may not reduce the section below 8/20.
 
 4. Error Recognition & Uncertainty Handling — 10 points
 
@@ -124,15 +129,15 @@ Whether the model understands where and how it could be wrong.
 
 A. Unknown Identification (4 pts)
 
-Explicitly states missing or noisy information
+Explicitly states missing or noisy information.
 
 B. Failure Mode Awareness (4 pts)
 
-Identifies realistic ways the decision could fail
+Identifies realistic ways the decision could fail.
 
 C. Epistemic Humility (2 pts)
 
-Avoids false certainty or deterministic language
+Avoids false certainty or deterministic language.
 
 Output Requirements (Non-Scored, unless violated)
 
