@@ -26,6 +26,7 @@ def _record_response(
     return {
         "run_id": run_id,
         "model_under_test": model,
+        "reasoning_effort": result.reasoning_effort,
         "question_id": scenario.id,
         "prompt": scenario.question,
         "full_prompt": result.prompt_text,
@@ -35,7 +36,6 @@ def _record_response(
         "api_model": result.api_model,
         "timestamp": timestamp,
         "system_prompt_id": scenario.system_prompt_id,
-        "reasoning_effort": result.reasoning_effort,
     }
 
 

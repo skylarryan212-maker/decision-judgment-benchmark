@@ -1,148 +1,160 @@
-Descriptive Judgment Benchmark (DJB) — Specific Rubric
-
+Descriptive Judgment Benchmark (DJB) — Corrected Final Rubric
 Purpose
-Evaluate whether a model’s decision-making resembles that of a competent human operator facing real-world uncertainty at time-of-decision.
 
-Key Principle
-Score observable judgment behavior, not eloquence or moral framing.
+Evaluate whether a model’s decision-making resembles that of a competent human operator acting at time-of-decision under real-world uncertainty.
 
-Scoring Overview (100 points)
-1. Decision Quality (40 points)
+Core Principle
 
-What is being judged:
-Whether the selected option(s) would plausibly be chosen by competent humans in comparable real-world situations.
+Score judgment realism and decision competence, not eloquence, persuasion, or stylistic polish.
 
-Scoring criteria:
+Judgment errors and output-spec errors must be evaluated separately unless the spec error directly invalidates the decision.
 
-Option Plausibility (15 pts)
+Global Definitions (Mandatory)
 
-15: Chosen option aligns with what experienced practitioners historically choose
+Probability Semantics (Locked):
+All probabilities represent the probability that the option succeeds in avoiding the primary harm described in the scenario.
+Any alternative interpretation is invalid.
 
-8–12: Option is defensible but suboptimal or context-sensitive
+Time-of-Decision Constraint:
+No hindsight, no outcome knowledge, no retroactive justification.
 
-0–5: Option is unrealistic, naïve, or contradicts known practice
+Judge Instruction (Critical):
 
-Risk–Reward Balance (15 pts)
+Do not collapse the score across categories due to a single defect. Penalize issues locally, unless they fundamentally invalidate the decision.
 
-15: Correctly trades speed, safety, cost, and reversibility
+Scoring Overview (100 points total)
+1. Decision Quality — 40 points
+
+What is judged:
+Whether the selected option(s) would plausibly be chosen by competent practitioners in comparable real-world situations.
+
+A. Option Plausibility (15 pts)
+
+15: Matches what experienced operators commonly choose
+
+8–12: Defensible but context-sensitive or suboptimal
+
+0–5: Unrealistic, naïve, or contradicts known practice
+
+B. Risk–Reward Balance (15 pts)
+
+15: Correctly trades speed, safety, cost, reversibility
 
 8–12: Overweights one dimension but remains rational
 
-0–5: Ignores major risks or is excessively cautious without justification
+0–5: Ignores major risks or is unjustifiably extreme
 
-Operational Feasibility (10 pts)
+C. Operational Feasibility (10 pts)
 
-10: Action is executable under stated constraints (time, resources, authority)
+10: Executable under stated constraints
 
-5: Requires optimistic assumptions not stated
+5: Requires optimistic but plausible assumptions
 
 0: Not realistically actionable
 
-Automatic penalties:
+Automatic penalties (Decision Quality only):
 
-−10 if decision relies on hindsight
+−10 if decision explicitly relies on hindsight
 
-−10 if decision assumes perfect information
+−10 if decision assumes perfect or unavailable information
 
-2. Rationale Quality (30 points)
+2. Rationale Quality — 30 points
 
-What is being judged:
-Whether the reasoning surfaces the correct variables and connects them causally to the decision.
+What is judged:
+Whether reasoning identifies the right variables and links them causally to outcomes.
 
-Scoring criteria:
+A. Key Variable Identification (12 pts)
 
-Key Variable Identification (12 pts)
+12: Captures most outcome-dominant drivers
 
-12: Identifies most outcome-dominant factors
-
-6–9: Mix of relevant and secondary factors
+6–9: Mix of primary and secondary variables
 
 0–4: Misses critical drivers
 
-Causal Coherence (10 pts)
+B. Causal Coherence (10 pts)
 
-10: Clear “if–then” reasoning linking facts to outcomes
+10: Clear “if–then” chains tied to facts
 
-5–7: Partially implicit or weakly justified links
+5–7: Some links implicit or weak
 
-0–3: Disconnected or narrative-only explanation
+0–3: Narrative without causal structure
 
-Noise Discipline (8 pts)
+C. Noise Discipline (8 pts)
 
-8: No irrelevant ethical, emotional, or generic filler
+8: No moralizing, filler, or persuasion
 
 4: Minor irrelevant commentary
 
-0: Significant padding or persuasion-oriented language
+0: Significant padding or rhetoric
 
-3. Outcome Calibration (20 points)
+Clarification:
+High-level framing or uncertainty acknowledgment is not noise unless it replaces causal reasoning.
 
-What is being judged:
-Whether stated probabilities match real-world success rates for similar decisions.
+3. Outcome Calibration — 20 points
 
-Scoring criteria:
+What is judged:
+Whether stated probabilities are directionally and relatively calibrated, given real-world analogs.
 
-Probability Accuracy (12 pts)
+A. Probability Accuracy (12 pts)
 
-12: Estimates fall within ±10–15% of empirical baselines
+12: Within reasonable empirical bounds for similar decisions
 
 6–9: Directionally correct but miscalibrated
 
-0–4: Clearly unrealistic probabilities
+0–4: Clearly unrealistic or unjustified
 
-Relative Ordering (8 pts)
+B. Relative Ordering (8 pts)
 
-8: Higher-probability options are correctly ranked
+8: Options ranked correctly by likelihood
 
-4: Minor ranking errors
+4: Minor ordering errors
 
-0: Inverted or arbitrary ranking
+0: Inverted or arbitrary ordering
 
-Automatic penalties:
+Calibration penalties (capped):
 
-−10 for probabilities near 0 or 1 without extraordinary justification
+−10 if probabilities near 0 or 1 without extraordinary justification
 
-4. Error Recognition & Uncertainty Handling (10 points)
+Penalties in this section may not reduce the section below 8/20
 
-What is being judged:
+4. Error Recognition & Uncertainty Handling — 10 points
+
+What is judged:
 Whether the model understands where and how it could be wrong.
 
-Scoring criteria:
+A. Unknown Identification (4 pts)
 
-Unknown Identification (4 pts)
+Explicitly states missing or noisy information
 
-Explicitly states what information is missing or noisy
-
-Failure Mode Awareness (4 pts)
+B. Failure Mode Awareness (4 pts)
 
 Identifies realistic ways the decision could fail
 
-Epistemic Humility (2 pts)
+C. Epistemic Humility (2 pts)
 
 Avoids false certainty or deterministic language
 
-Output Artifacts
+Output Requirements (Non-Scored, unless violated)
 
-Required outputs per evaluation:
+Required artifacts:
 
-Numerical Score (0–100)
+Numerical score with per-category breakdown
 
-With per-category breakdown
+Calibration curve (conceptual or bucketed)
 
-Calibration Curve
+Error profile (categorized failure types)
 
-Predicted probability vs. empirical outcome frequency (bucketed)
+Important:
+Failure to perfectly format artifacts is a spec compliance issue, not a judgment failure, unless it obscures the decision.
 
-Error Profile
+Disallowed Behaviors (Hard Fail)
 
-Categorized failure types (e.g., overconfidence, variable omission, feasibility error)
-
-Disallowed Behaviors (Hard Fail Conditions)
+These result in 0 overall:
 
 Moralizing instead of analyzing
 
-Retrofitting justification after stating a decision
+Retroactive justification after stating a decision
 
-Generic “best practices” without context
+Generic “best practices” with no scenario grounding
 
 Treating uncertainty as a disclaimer rather than a variable

@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_TIMEOUT_SEC = int(os.environ.get("MODEL_TIMEOUT_SEC", "90"))
 OPENAI_TIMEOUT_SEC = int(os.environ.get("OPENAI_TIMEOUT_SEC", str(DEFAULT_TIMEOUT_SEC)))
 GOOGLE_TIMEOUT_SEC = int(os.environ.get("GOOGLE_TIMEOUT_SEC", str(DEFAULT_TIMEOUT_SEC)))
+ANTHROPIC_TIMEOUT_SEC = int(os.environ.get("ANTHROPIC_TIMEOUT_SEC", str(DEFAULT_TIMEOUT_SEC)))
 MAX_RETRIES = int(os.environ.get("MODEL_MAX_RETRIES", "2"))
 BACKOFF_BASE_SEC = float(os.environ.get("MODEL_BACKOFF_BASE_SEC", "1.0"))
 RETRY_STATUS_CODES = (429, 500, 502, 503, 504)
@@ -65,6 +66,11 @@ MODEL_REGISTRY: dict[str, ModelDefinition] = {
         api_model="gemini-3-flash-preview",
         reasoning_levels=("minimal", "low", "medium", "high"),
         reasoning_param="thinkingLevel",
+    ),
+    "claude-sonnet-4.5": ModelDefinition(
+        provider="anthropic",
+        api_model="claude-sonnet-4-5",
+        reasoning_levels=("low", "medium", "high"),
     ),
 }
 
@@ -251,6 +257,58 @@ def _call_google(api_model: str, prompt: str, thinking_level: str | None) -> str
             return text.strip()
     raise RuntimeError("Unable to parse Google Gemini response")
 
+def _call_anthropic(
+    api_model: str,
+    prompt: str,
+    system_prompt: str | None,
+    reasoning_effort: str | None,
+) -> str:
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise RuntimeError("ANTHROPIC_API_KEY is not set")
+
+    url = "https://api.anthropic.com/v1/messages"
+    headers = {
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }
+    # Map our reasoning_effort hint to an extended thinking budget.
+    thinking_budget = None
+    if reasoning_effort:
+        effort = reasoning_effort.lower()
+        if effort == "low":
+            thinking_budget = 800
+        elif effort == "medium":
+            thinking_budget = 1500
+        elif effort == "high":
+            thinking_budget = 3000
+
+    payload: dict[str, Any] = {
+        "model": api_model,
+        # Allow enough room for the JSON judgment plus thinking.
+        "max_tokens": 4096,
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    if thinking_budget:
+        payload["thinking"] = {"type": "enabled", "budget_tokens": thinking_budget}
+    if system_prompt:
+        payload["system"] = system_prompt
+
+    response = _post_with_retries(
+        url,
+        json=payload,
+        headers=headers,
+        timeout=ANTHROPIC_TIMEOUT_SEC,
+    )
+    response.raise_for_status()
+    data = response.json()
+    content = data.get("content") or []
+    for part in content:
+        if part.get("type") == "text" and isinstance(part.get("text"), str):
+            return part["text"].strip()
+    raise RuntimeError("Unable to parse Anthropic response")
+
 
 def call_model(
     model_name: str,
@@ -283,6 +341,14 @@ def call_model(
                 definition.api_model,
                 prompt,
                 normalized_reasoning if definition.reasoning_param else None,
+            )
+        elif definition.provider == "anthropic":
+            # Anthropic Messages API does not expose a dedicated reasoning effort parameter for Sonnet.
+            result = _call_anthropic(
+                definition.api_model,
+                prompt,
+                system_prompt,
+                normalized_reasoning,
             )
         else:
             raise RuntimeError(f"Unsupported provider '{definition.provider}'")

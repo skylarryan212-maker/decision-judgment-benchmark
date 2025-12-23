@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
+import io
+import json
 from pathlib import Path
 from typing import Iterable
 
@@ -25,11 +27,71 @@ class JudgeSpec:
 
 
 JUDGE_SPECS: list[JudgeSpec] = [
-    JudgeSpec(id="gpt-5.2", display_name="GPT-5.2", model_name="gpt-5.2", reasoning_effort="xhigh"),
+    JudgeSpec(id="gpt-5.2", display_name="GPT-5.2", model_name="gpt-5.2", reasoning_effort="high"),
     JudgeSpec(id="gemini-3-pro", display_name="Gemini 3 Pro", model_name="gemini-3-pro-preview", reasoning_effort="high"),
-    JudgeSpec(id="claude-4.5-opus", display_name="Claude 4.5 Opus", model_name=None, simulated=True),
+    JudgeSpec(id="claude-4.5-sonnet", display_name="Claude Sonnet 4.5", model_name="claude-sonnet-4.5", reasoning_effort="high"),
 ]
 JUDGE_REPEATS = 3
+
+
+def _truncate_judgment_text(text: str) -> str:
+    """Trim judgment text right after the uncertainty_handling field if present."""
+    if not isinstance(text, str):
+        return text
+    marker = '"uncertainty_handling"'
+    idx = text.find(marker)
+    if idx == -1:
+        return text
+    tail = text[idx:]
+    import re
+
+    m = re.search(r'"uncertainty_handling"\s*:\s*[\d\.]+', tail)
+    if m:
+        cut = idx + m.end()
+        return text[:cut]
+    return text
+
+
+def _write_compressed_judgments(benchmark_dirs: list[Path]) -> None:
+    """Emit judgments_compressed.jsonl with minimal fields grouped by question->model_under_test->judge->pass."""
+    for bench_dir in benchmark_dirs:
+        src = bench_dir / "judgments.jsonl"
+        if not src.exists():
+            continue
+        dst = bench_dir / "judgments_compressed.jsonl"
+        records = []
+        with io.open(src, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                records.append(entry)
+
+        def _key(rec: dict) -> tuple:
+            return (
+                rec.get("question_id") or "",
+                rec.get("model_under_test") or "",
+                rec.get("model_reasoning_effort") or "",
+                rec.get("judge_model") or rec.get("judge_id") or "",
+                rec.get("judge_pass") or 0,
+            )
+
+        records.sort(key=_key)
+        with io.open(dst, "w", encoding="utf-8") as f:
+            for rec in records:
+                minimal = {
+                    "question_id": rec.get("question_id"),
+                    "model_under_test": rec.get("model_under_test"),
+                    "model_reasoning_effort": rec.get("model_reasoning_effort"),
+                    "judge_model": rec.get("judge_model") or rec.get("judge_id"),
+                    "judge_pass": rec.get("judge_pass"),
+                    "judgment": _truncate_judgment_text(rec.get("judgment")),
+                }
+                f.write(json.dumps(minimal, ensure_ascii=False) + "\n")
 
 
 def _load_prompt_content(path: Path) -> str | None:
@@ -173,6 +235,7 @@ def run_judges(
                     "response_timestamp": response.get("timestamp"),
                     "question_id": response.get("question_id"),
                     "model_under_test": response.get("model_under_test"),
+                    "model_reasoning_effort": response.get("reasoning_effort"),
                     "judge_id": entry_spec.id,
                     "judge_model": entry_spec.display_name,
                     "judge_pass": entry_pass,
@@ -208,3 +271,6 @@ def run_judges(
                         append_jsonl(judgments_path, entry)
                     existing.add(key)
                     processed += 1
+
+    # After processing, emit compressed summaries for these benchmarks.
+    _write_compressed_judgments(list(benchmark_dirs))
