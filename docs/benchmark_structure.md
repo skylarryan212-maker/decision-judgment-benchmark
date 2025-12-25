@@ -14,9 +14,9 @@ This repo will house the descriptive, normative, and human-judgment fidelity ben
 2. `data/benchmarks/<benchmark>/questions.jsonl` now stores only the question text plus metadata such as the linked `system_prompt_id` and a `references` object listing the `examples.jsonl` IDs that inspired the scenario.
 3. `data/benchmarks/<benchmark>/rubric.md` summarizes how this benchmark is scored (purpose, focus, and percent-weighted categories) so the judge stage knows what to evaluate.
 4. `data/benchmarks/<benchmark>/system_prompt.jsonl` stores the system prompt that the model under test should see for that benchmark.
-5. `data/benchmarks/<benchmark>/judge_system_prompt.jsonl` holds the per-benchmark judge system prompt (for GPT 5.2, Gemini 3 Pro, Claude 4.5 Opus) so each benchmark can explain its rubric once we wire the judge layer.
+5. `data/benchmarks/<benchmark>/judge_system_prompt.jsonl` holds the per-benchmark judge system prompt (the default judge models are GPT 5.2, Gemini 3 Pro, and Claude Sonnet 4.5, each running on high reasoning effort) so each benchmark can explain its rubric once we wire the judge layer.
 6. `data/benchmarks/<benchmark>/responses.jsonl` tracks every model-under-test response for that benchmark.
-7. `data/benchmarks/<benchmark>/judgments.jsonl` will hold the judge-LM scores per response when that layer is wired up.
+7. `data/benchmarks/<benchmark>/judgments.jsonl` will hold the judge-LM scores per response when that layer is wired up (each record now includes `judge_reasoning_effort` alongside `judge_model`).
 8. `data/system_prompts/judges.jsonl` currently defines a shared system prompt used by all judge LLMs; later we can migrate to per-benchmark files or remove once judges read the benchmark-specific ones.
 9. Later steps will compute averages, produce calibration curves, and surface governance indicators.
 
@@ -29,6 +29,7 @@ Use the packaged CLI (`python -m decision_judgment_benchmark` or the `djb` scrip
 - `python -m decision_judgment_benchmark list`: shows every scenario across `data/benchmarks/` with its benchmark tag and system prompt reference.
 - `python -m decision_judgment_benchmark run --model GPT-5-mini`: iterates through the question files inside `data/benchmarks/`, applies the linked local `system_prompt.jsonl` for each benchmark, and appends the response to `responses.jsonl` inside that benchmark’s folder (simulated until real models succeed).
 - `--dry-run` skips writing logs so you can verify prompts before mutating files.
+- `python -m decision_judgment_benchmark judge`: runs the judge layer (defaulting to GPT-5.2, Gemini 3 Pro, and Claude Sonnet 4.5 all at high reasoning effort) over the recorded responses; add one or more `--judge-spec MODEL[:REASONING]` flags to override the judge set (e.g., `--judge-spec gpt-5.2:medium --judge-spec gemini-3-pro-preview:high`).
 
 These flows keep the CLI simple while the foldered layout makes it easy to separate DJB/NJB/HJFB questions and their system prompts.
 

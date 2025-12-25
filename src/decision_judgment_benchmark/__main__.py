@@ -9,7 +9,7 @@ from typing import Sequence
 from dotenv import load_dotenv
 
 from .io import Scenario, append_jsonl, load_scenarios
-from .judge import run_judges
+from .judge import parse_judge_spec_strings, run_judges
 from .models import MODEL_REGISTRY, ModelCallResult, call_model
 from .utils import format_timestamp
 
@@ -160,6 +160,15 @@ def main() -> None:
         action="store_true",
         help="Deliver judge calls in parallel (default is sequential).",
     )
+    judge_parser.add_argument(
+        "--judge-spec",
+        action="append",
+        metavar="MODEL[:REASONING]",
+        help=(
+            "Specify judge models to run, optionally with their reasoning effort (default "
+            "is gpt-5.2, gemini-3-pro-preview, claude-sonnet-4.5 all on high)."
+        ),
+    )
 
     args = parser.parse_args()
     command = args.command or "list"
@@ -178,12 +187,18 @@ def main() -> None:
         else:
             benchmark_dirs = [entry for entry in sorted(base.iterdir()) if entry.is_dir()]
 
+        try:
+            judge_specs = parse_judge_spec_strings(args.judge_spec)
+        except ValueError as exc:
+            parser.error(str(exc))
+
         run_judges(
             run_id=judge_run_id,
             benchmark_dirs=benchmark_dirs,
             limit=args.limit,
             dry_run=args.dry_run,
             parallel=args.parallel,
+            judge_specs=judge_specs,
         )
         return
 
