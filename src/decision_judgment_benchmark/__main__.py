@@ -8,12 +8,12 @@ from typing import Sequence
 
 from dotenv import load_dotenv
 
+load_dotenv(".env.local")
+
 from .io import Scenario, append_jsonl, load_scenarios
 from .judge import parse_judge_spec_strings, run_judges
 from .models import MODEL_REGISTRY, ModelCallResult, call_model
 from .utils import format_timestamp
-
-load_dotenv(".env.local")
 
 
 def _record_response(
@@ -169,6 +169,11 @@ def main() -> None:
             "is gpt-5.2, gemini-3-pro-preview, claude-sonnet-4.5 all on high)."
         ),
     )
+    judge_parser.add_argument(
+        "--redo-simulated",
+        action="store_true",
+        help="Remove simulated judge entries for the selected specs before re-running them.",
+    )
 
     args = parser.parse_args()
     command = args.command or "list"
@@ -199,6 +204,7 @@ def main() -> None:
             dry_run=args.dry_run,
             parallel=args.parallel,
             judge_specs=judge_specs,
+            redo_simulated=args.redo_simulated,
         )
         return
 

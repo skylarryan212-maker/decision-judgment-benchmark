@@ -159,6 +159,41 @@ def _write_compressed_judgments(benchmark_dirs: list[Path]) -> None:
                 f.write(json.dumps(minimal, ensure_ascii=False) + "\n")
 
 
+def _prune_simulated_judgments(
+    benchmark_dir: Path,
+    specs: Sequence[JudgeSpec],
+) -> int:
+    judgments_path = benchmark_dir / "judgments.jsonl"
+    if not judgments_path.exists():
+        return 0
+
+    spec_ids = {spec.id for spec in specs}
+    spec_efforts = {spec.id: spec.reasoning_effort for spec in specs}
+    kept = []
+    removed = 0
+
+    for rec in load_jsonl(judgments_path):
+        judge_id = rec.get("judge_id")
+        if judge_id not in spec_ids:
+            kept.append(rec)
+            continue
+
+        effort = rec.get("judge_reasoning_effort") or rec.get("reasoning_effort")
+        target_effort = spec_efforts.get(judge_id)
+        matches_effort = target_effort is None or effort == target_effort
+        if rec.get("response_source") == "simulation" and matches_effort:
+            removed += 1
+            continue
+
+        kept.append(rec)
+
+    with io.open(judgments_path, "w", encoding="utf-8") as f:
+        for rec in kept:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+
+    return removed
+
+
 def _load_prompt_content(path: Path) -> str | None:
     if not path.exists():
         return None
@@ -219,12 +254,29 @@ def run_judges(
     dry_run: bool = False,
     parallel: bool = False,
     judge_specs: Sequence[JudgeSpec] | None = None,
+    redo_simulated: bool = False,
 ) -> None:
     scenarios = {scenario.id: scenario for scenario in load_scenarios(Path("data/benchmarks"))}
     shared_prompt = _load_prompt_content(JUDGE_SHARED_PROMPT)
     processed = 0
 
     active_specs = list(judge_specs or JUDGE_SPECS)
+
+    tasks: list[
+        tuple[
+            JudgeSpec,
+            int,
+            tuple[str, str, str, str | None, int],
+            Path,
+            Scenario,
+            dict[str, object],
+            str | None,
+            str | None,
+        ]
+    ] = []
+    benchmarks_with_tasks: list[Path] = []
+
+    stop_building = False
 
     for benchmark_dir in benchmark_dirs:
         if not benchmark_dir.is_dir():
@@ -235,6 +287,8 @@ def run_judges(
             continue
 
         judgments_path = benchmark_dir / "judgments.jsonl"
+        if redo_simulated and not dry_run:
+            _prune_simulated_judgments(benchmark_dir, active_specs)
         existing = set()
         for entry in load_jsonl(judgments_path):
             existing.add(
@@ -242,6 +296,7 @@ def run_judges(
                     entry.get("response_run_id"),
                     entry.get("question_id"),
                     entry.get("judge_id"),
+                    entry.get("judge_reasoning_effort"),
                     entry.get("judge_pass", 1),
                 )
             )
@@ -266,79 +321,99 @@ def run_judges(
             if scenario is None:
                 continue
 
-            tasks: list[tuple[JudgeSpec, int, tuple[str, str, str, int]]] = []
             for spec in active_specs:
                 for judge_pass in range(1, JUDGE_REPEATS + 1):
                     if limit is not None and processed >= limit:
-                        return
+                        break
 
                     key = (
                         response.get("run_id"),
                         response.get("question_id"),
                         spec.id,
+                        spec.reasoning_effort,
                         judge_pass,
                     )
                     if key in existing:
                         continue
 
-                    tasks.append((spec, judge_pass, key))
-
-            if not tasks:
-                continue
-
-            def _execute_task(
-                entry_spec: JudgeSpec,
-                entry_pass: int,
-                entry_key: tuple[str, str, str, int],
-            ) -> tuple[tuple[str, str, str, int], dict[str, object]]:
-                prompt_body = _build_judge_body(
-                    scenario,
-                    str(response.get("response", "")),
-                    rubric_text,
-                )
-                result = _call_judge_model(entry_spec, prompt_body, system_prompt)
-                entry_record = {
-                    "judge_run_id": run_id,
-                    "response_run_id": response.get("run_id"),
-                    "response_timestamp": response.get("timestamp"),
-                    "question_id": response.get("question_id"),
-                    "model_under_test": response.get("model_under_test"),
-                    "model_reasoning_effort": response.get("reasoning_effort"),
-                    "judge_id": entry_spec.id,
-                    "judge_model": entry_spec.display_name,
-                    "judge_reasoning_effort": result.reasoning_effort,
-                    "judge_pass": entry_pass,
-                    "judgment": result.response_text,
-                    "response_source": "live" if result.live else "simulation",
-                    "api_model": result.api_model,
-                    "prompt": result.prompt_text,
-                    "timestamp": format_timestamp(),
-                }
-                return entry_key, entry_record
-
-            if parallel:
-                with ThreadPoolExecutor() as executor:
-                    futures = {
-                        executor.submit(_execute_task, spec, judge_pass, key): key
-                        for spec, judge_pass, key in tasks
-                    }
-                    for future in as_completed(futures):
-                        key, entry = future.result()
-                        if dry_run:
-                            print("Judge record (dry run):", entry)
-                        else:
-                            append_jsonl(judgments_path, entry)
-                        existing.add(key)
-                        processed += 1
-            else:
-                for spec, judge_pass, key in tasks:
-                    _, entry = _execute_task(spec, judge_pass, key)
-                    if dry_run:
-                        print("Judge record (dry run):", entry)
-                    else:
-                        append_jsonl(judgments_path, entry)
-                    existing.add(key)
+                    tasks.append(
+                        (
+                            spec,
+                            judge_pass,
+                            key,
+                            judgments_path,
+                            scenario,
+                            response,
+                            rubric_text,
+                            system_prompt,
+                        )
+                    )
                     processed += 1
+                if limit is not None and processed >= limit:
+                    stop_building = True
+                    break
+
+        if tasks and benchmark_dir not in benchmarks_with_tasks:
+            benchmarks_with_tasks.append(benchmark_dir)
+        if stop_building:
+            break
+
+    def _execute_task(
+        entry_spec: JudgeSpec,
+        entry_pass: int,
+        entry_key: tuple[str, str, str, str | None, int],
+        entry_path: Path,
+        entry_scenario: Scenario,
+        entry_response: dict[str, object],
+        entry_rubric: str | None,
+        entry_system_prompt: str | None,
+    ) -> tuple[tuple[str, str, str, str | None, int], Path, dict[str, object]]:
+        prompt_body = _build_judge_body(
+            entry_scenario,
+            str(entry_response.get("response", "")),
+            entry_rubric,
+        )
+        result = _call_judge_model(entry_spec, prompt_body, entry_system_prompt)
+        entry_record = {
+            "judge_run_id": run_id,
+            "response_run_id": entry_response.get("run_id"),
+            "response_timestamp": entry_response.get("timestamp"),
+            "question_id": entry_response.get("question_id"),
+            "model_under_test": entry_response.get("model_under_test"),
+            "model_reasoning_effort": entry_response.get("reasoning_effort"),
+            "judge_id": entry_spec.id,
+            "judge_model": entry_spec.display_name,
+            "judge_reasoning_effort": result.reasoning_effort,
+            "judge_pass": entry_pass,
+            "judgment": result.response_text,
+            "response_source": "live" if result.live else "simulation",
+            "api_model": result.api_model,
+            "prompt": result.prompt_text,
+            "timestamp": format_timestamp(),
+        }
+        return entry_key, entry_path, entry_record
+
+    if parallel:
+        with ThreadPoolExecutor() as executor:
+            futures = {
+                executor.submit(_execute_task, *task): task[2]
+                for task in tasks
+            }
+            for future in as_completed(futures):
+                key, entry_path, entry = future.result()
+                if dry_run:
+                    print("Judge record (dry run):", entry)
+                else:
+                    append_jsonl(entry_path, entry)
+                existing.add(key)
+    else:
+        for task in tasks:
+            key, entry_path, entry = _execute_task(*task)
+            if dry_run:
+                print("Judge record (dry run):", entry)
+            else:
+                append_jsonl(entry_path, entry)
+            existing.add(key)
 
     # After processing, emit compressed summaries for these benchmarks.
-    _write_compressed_judgments(list(benchmark_dirs))
+    _write_compressed_judgments(benchmarks_with_tasks or list(benchmark_dirs))
